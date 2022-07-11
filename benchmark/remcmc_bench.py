@@ -72,35 +72,43 @@ class BenchmarkSampling(remcmc_base.ReplicaExchangeBase):
         return target_function(param_j)
 
 if __name__=="__main__":
+    np.random.seed(42)
     dim = 3
+    print("simple MCMC")
     n_samples = 10**4
-    beta_k = [1]
-    sp = BenchmarkSampling(
-        dimention=dim,
-        beta_k=beta_k,
-        eps_j_k=[[1 for _ in range(dim)] for _K in beta_k],
-        exchange_step=10,
-        pri_mid=[0 for _ in range(dim)],
-        pri_width=[1 for _ in range(dim)],
-        init=[
-            {f"x_{i}": 2 + np.random.randn()*0.1 for i in range(3)}
-            for _k in beta_k]
-    )
-    sp.sampling(n_samples)
-    sp.save("test_mhmcmc.bin")
+    for _ in range(6):
+        beta_k = [1]
+        init = [np.random.randn()*10 for _ in range(dim)]
+        print(init)
+        sp = BenchmarkSampling(
+            dimention=dim,
+            beta_k=beta_k,
+            eps_j_k=[[1 for _ in range(dim)] for _k in beta_k],
+            exchange_step=10**4,
+            pri_mid=[0 for _ in range(dim)],
+            pri_width=[10 for _ in range(dim)],
+            init=[
+                {f"x_{i}": x_i for i,x_i in enumerate(init)}
+                for _k in beta_k]
+        )
+        sp.sampling(n_samples)
+        sp.save("test_mhmcmc.bin", timestamp=True)
     
-    beta_k = np.logspace(-7, 3, 21)
-    print(beta_k)
+    print("Replica exchange MCMC")
+    beta_k = np.logspace(-5, 5, 21)
+    init = [2.5 for _ in range(dim)]
     sp = BenchmarkSampling(
         dimention=dim,
         beta_k=beta_k,
-        eps_j_k=[[1 for _ in range(dim)] for _K in beta_k],
-        exchange_step=10,
+        eps_j_k=[
+            [eps for _ in range(dim)]
+            for eps in np.logspace(np.log10(10), np.log10(0.1), beta_k.size)],
+        exchange_step=5,
         pri_mid=[0 for _ in range(dim)],
-        pri_width=[1 for _ in range(dim)],
+        pri_width=[10 for _ in range(dim)],
         init=[
-            {f"x_{i}": 2 + np.random.randn()*0.1 for i in range(3)}
+            {f"x_{i}": x_i for i,x_i in enumerate(init)}
             for _k in beta_k]
     )
     sp.sampling(n_samples)
-    sp.save("test_remcmc.bin")
+    sp.save("test_remcmc.bin", timestamp=True)
