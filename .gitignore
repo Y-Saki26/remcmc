@@ -1,5 +1,5 @@
-*/.ipynb_checkpoints/
-benchmark/sampling_log.txt
-benchmark/test_mhmcmc_*.bin
-benchmark/test_remcmc_*.bin
-benchmark/__pycache__/
+*.ipynb_checkpoints/
+*__pycache__/
+*.bin
+*_log.txt
+.vscode/
