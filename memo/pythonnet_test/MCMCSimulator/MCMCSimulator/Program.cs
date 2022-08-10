@@ -29,27 +29,31 @@ namespace MCMCSimulator
 
             int burnin = sample_size - sample_size / 10, skip = 10;
 
+            
             /*
+            // single
             foreach(decimal beta in ARange(beta_min, beta_max, beta_step))
             //for (decimal beta = beta_min; beta <= beta_max; beta += beta_step)
             {
                 var sim = new Simulator.Ising2d(width, height, (float)beta);
-                sim.Sampling(sample_size);
+                sim.Sampling(sample_size, true);
                 var (spe_mean, spe_std) = sim.SpecificHeats(burnin, 10, bootstrap);
                 var ll_mean = -(float)beta * Slice(sim.Energys, burnin, null, 10).Average();
                 Console.WriteLine($"{beta}, {spe_mean:f3}, {spe_std:f3}, {ll_mean:f3}");
             }
             */
-
+            
+            // parallel
             float[] betas = ARange(beta_min, beta_max, beta_step).Select(x => (float)x).ToArray();
             var sims = new Simulator.Ising2dExchange(width, height, betas, 10);
-            sims.Sampling(sample_size, true, sample_size / 10);
+            sims.Sampling(sample_size, true, 1);
             int sample_num = sample_size + 1;
+            /*
             PrintListList(ARange(bootstrap, null, skip).Select(
                     n => ARange(betas.Length).Select(
                         k => $"{sims.BetaIndex_n_k[k][n]:f0}"
                     )), ", ");
-
+            */
             List<float>[] energy_n_k = sims.GetEnergys();
             Console.WriteLine($"{energy_n_k.Length}, {energy_n_k[0].Count()}");
             PrintListList(ARange(bootstrap, null, skip).Select(
@@ -58,11 +62,12 @@ namespace MCMCSimulator
                     )), ", ");
 
             var (spe_mean_k, spe_std_k) = sims.SpecificHeat_k(burnin, skip, bootstrap);
+            /*
             for(int k = 0; k < betas.Length; k++) {
-                var ll_mean = -sims.Beta_k[k] * Slice(sims.Energy_n_k[k], burnin, null, skip).Average();
+                var ll_mean = -sims.Beta_k[k] * Slice(sims.energy_n_k[k], burnin, null, skip).Average();
                 Console.WriteLine($"{sims.Beta_k[k]:f2}, {spe_mean_k[k]:f3}, {spe_std_k[k]:f3}, {ll_mean:f3}");
             }
-
+            */
             /*
             var (spe_mean_k, spe_std_k) = sim.SpecificHeat_k();
             Console.WriteLine($"{spe_mean_k:F3}");

@@ -14,10 +14,11 @@ namespace Simulator
         public readonly float J, Field;
         public readonly float[] Beta_k;
         public int SampleCount;
-        public List<int>[] Interaction_n_k, Magnetization_n_k, BetaIndex_n_k, ChainIndex_n_k;
-        public List<float>[] Energy_n_k;
+        public List<int>[] BetaIndex_n_k, ChainIndex_n_k;
 
         private readonly int[] dx = { 0, 0, -1, 1 }, dy = { -1, 1, 0, 0 };
+        private List<int>[] interaction_n_k, magnetization_n_k;
+        private List<float>[] energy_n_k;
         private int[,,] spin_h_w_k;
         private int[] oldInteraction_k, oldMagnetization_k;
         private float[] oldEnergy_k;
@@ -29,8 +30,8 @@ namespace Simulator
             this.SizeWidth = SizeWidth;
             this.SizeHeight = SizeHeight;
             this.Beta_k = Beta_k;
-            this.ExchangeRate = ExchangeStep;
             SizeBeta = Beta_k.Length;
+            this.ExchangeRate = ExchangeStep;
             this.J = J;
             this.Field = Field;
 
@@ -43,42 +44,56 @@ namespace Simulator
                 }
             }
 
-            SampleCount = 1;
-            Interaction_n_k = new List<int>[SizeBeta];
-            Magnetization_n_k = new List<int>[SizeBeta];
-            Energy_n_k = new List<float>[SizeBeta];
+            interaction_n_k = new List<int>[SizeBeta];
+            magnetization_n_k = new List<int>[SizeBeta];
+            energy_n_k = new List<float>[SizeBeta];
             BetaIndex_n_k = new List<int>[SizeBeta];
             ChainIndex_n_k = new List<int>[SizeBeta];
             oldInteraction_k = new int[SizeBeta];
             oldMagnetization_k = new int[SizeBeta];
             oldEnergy_k = new float[SizeBeta];
             for(int k = 0; k < SizeBeta; k++) {
-                Interaction_n_k[k] = new List<int>();
-                Interaction_n_k[k].Add(LatsInteraction(k));
-                oldInteraction_k[k] = Interaction_n_k[k].Last();
-                Magnetization_n_k[k] = new List<int>();
-                Magnetization_n_k[k].Add(LastMagnetization(k));
-                oldMagnetization_k[k] = Magnetization_n_k[k].Last();
-                Energy_n_k[k] = new List<float>();
-                Energy_n_k[k].Add(LastEnergy(k));
-                oldEnergy_k[k] = Energy_n_k[k].Last();
+                interaction_n_k[k] = new List<int>();
+                interaction_n_k[k].Add(LastInteraction(k));
+                oldInteraction_k[k] = interaction_n_k[k].Last();
+                magnetization_n_k[k] = new List<int>();
+                magnetization_n_k[k].Add(LastMagnetization(k));
+                oldMagnetization_k[k] = magnetization_n_k[k].Last();
+                energy_n_k[k] = new List<float>();
+                energy_n_k[k].Add(LastEnergy(k));
+                oldEnergy_k[k] = energy_n_k[k].Last();
                 BetaIndex_n_k[k] = new List<int>();
                 BetaIndex_n_k[k].Add(k);
                 ChainIndex_n_k[k] = new List<int>();
                 ChainIndex_n_k[k].Add(k);
             }
+            SampleCount = 1;
+
+#if DEBUG
+            Verbose();
+            for(int k = 0; k < SizeBeta; k++) {
+                Debug.Assert(Interaction_n_k[k].Last() == LastInteraction(k), $"{SampleCount}, {k}: interaction not match, {Interaction_n_k[k].Last()}, {LastInteraction(k)}");
+                Debug.Assert(Magnetization_n_k[k].Last() == LastMagnetization(k), $"{SampleCount}, {k}: magnet not match, {Magnetization_n_k[k].Last()}, {LastMagnetization(k)}");
+                Debug.Assert(Energy_n_k[k].Last() == LastEnergy(k), $"{SampleCount}, {k}: energy not mathch,, {Energy_n_k[k].Last()}, {LastEnergy(k)}");
+            }
+            Console.WriteLine($"{SampleCount}: OK.");
+#endif
         }
 
-        public int LatsInteraction(int k) {
+        public int LastInteraction(int k) {
             int sum = 0;
-            for(int w = 0; w < SizeWidth - 1; w++) {
-                int ww = w + 1;
-                for(int h = 0; h < SizeHeight - 1; h++) {
-                    int hh = h + 1;
-                    sum += spin_h_w_k[k, w, h] * spin_h_w_k[k, ww, hh];
+            for(int w = 0; w < SizeWidth; w++) {
+                for(int h = 0; h < SizeHeight; h++) {
+                    for(int kk = 0; kk < 4; kk++) {
+                        int ww = w + dx[kk], hh = h + dy[kk];
+                        if(0 <= ww && ww < SizeWidth && 0 <= hh && hh < SizeHeight) {
+                            sum += spin_h_w_k[k, w, h] * spin_h_w_k[k, ww, hh];
+                        }
+                    }
+
                 }
             }
-            return sum;
+            return sum / 2;
         }
 
         public int LastMagnetization(int k) {
@@ -95,15 +110,24 @@ namespace Simulator
 
         public void Sampling(int sample_size, bool verbose = false, int verbose_frequency = 100) {
             for(int n = 0; n < sample_size; n++) {
-                if(n % ExchangeRate != 0) {
+                if(SampleCount % ExchangeRate != 0) {
                     SamplingLocal();
                 } else {
-                    SamplingExchange((n / ExchangeRate) % 2 == 0);
+                    SamplingExchange((SampleCount / ExchangeRate) % 2 == 0);
                 }
                 SampleCount++;
 
-                if(verbose && n % verbose_frequency == 0) {
+                if(verbose && SampleCount % verbose_frequency == 0) {
                     Verbose();
+#if DEBUG
+                    for(int k=0; k<SizeBeta; k++) {
+                        Debug.Assert(Interaction_n_k[k].Last() == LastInteraction(k), $"{SampleCount}, {k}: interaction not match, {Interaction_n_k[k].Last()}, {LastInteraction(k)}");
+                        Debug.Assert(Magnetization_n_k[k].Last() == LastMagnetization(k), $"{SampleCount}, {k}: magnet not match, {Magnetization_n_k[k].Last()}, {LastMagnetization(k)}");
+                        Debug.Assert(Energy_n_k[k].Last() == LastEnergy(k), $"{SampleCount}, {k}: energy not mathch,, {Energy_n_k[k].Last()}, {LastEnergy(k)}");
+                        //Console.WriteLine($"{n}: OK.");
+                    }
+                    Console.WriteLine($"{SampleCount}: OK.");
+#endif
                 }
             }
         }
@@ -125,7 +149,8 @@ namespace Simulator
                     int new_interaction = oldInteraction_k[k] - d_interaction * 2;
                     float new_energy = Energy(J, Field, new_interaction, new_magnetization);
 
-                    if(MetropolisTest(rnd, -Beta_k[BetaIndex_n_k[k].Last()] * oldEnergy_k[k], -Beta_k[BetaIndex_n_k[k].Last()] * new_energy)) {
+                    int bi = BetaIndex_n_k[k].Last();
+                    if(MetropolisTest(rnd, -Beta_k[bi] * oldEnergy_k[k], -Beta_k[bi] * new_energy)) {
                         spin_h_w_k[k, w, h] = new_spin;
                         oldInteraction_k[k] = new_interaction;
                         oldMagnetization_k[k] = new_magnetization;
@@ -133,52 +158,95 @@ namespace Simulator
                     }
 
                 }
-                Interaction_n_k[k].Add(oldInteraction_k[k]);
-                Magnetization_n_k[k].Add(oldMagnetization_k[k]);
-                Energy_n_k[k].Add(oldEnergy_k[k]);
+                interaction_n_k[k].Add(oldInteraction_k[k]);
+                magnetization_n_k[k].Add(oldMagnetization_k[k]);
+                energy_n_k[k].Add(oldEnergy_k[k]);
                 BetaIndex_n_k[k].Add(BetaIndex_n_k[k].Last());
                 ChainIndex_n_k[k].Add(ChainIndex_n_k[k].Last());
             }
         }
 
         private void SamplingExchange(bool even) {
-            int[] rev_index_k = new int[SizeBeta];
+            int[] chain_index_k = new int[SizeBeta];
             for(int k = 0; k < SizeBeta; k++) {
-                rev_index_k[k] = ChainIndex_n_k[k].Last();
+                chain_index_k[k] = ChainIndex_n_k[k].Last();
             }
             for(int k = (even ? 0 : 1); k < SizeBeta - 1; k += 2) {
-                int riL = rev_index_k[k], riR = rev_index_k[k + 1];
-                float oldLogLikelihood = -Beta_k[riL] * oldEnergy_k[riL] - Beta_k[riR] * oldEnergy_k[riR],
-                    newLogLikelihood = -Beta_k[riR] * oldEnergy_k[riR] - Beta_k[riL] * oldEnergy_k[riR];
-                if(MetropolisTest(rnd, oldLogLikelihood, newLogLikelihood)) {
-                    //(oldInteraction_k[kL], oldInteraction_k[kR]) = (oldInteraction_k[kR], oldInteraction_k[kL]);
-                    //(oldMagnetization_k[kL], oldMagnetization_k[kR]) = (oldMagnetization_k[kR], oldMagnetization_k[kL]);
-                    //(oldEnergy_k[kL], oldEnergy_k[kR]) = (oldEnergy_k[kR], oldEnergy_k[kL]);
-                    (rev_index_k[k], rev_index_k[k + 1]) = (riR, riL);
+                int ciL = chain_index_k[k], ciR = chain_index_k[k + 1];
+                if(ExchangeTest(rnd, Beta_k[ciL], Beta_k[ciR], oldEnergy_k[ciL], oldEnergy_k[ciR])) {
+                //if(MetropolisTest(rnd, oldLogLikelihood, newLogLikelihood)) {
+                        (chain_index_k[k], chain_index_k[k + 1]) = (ciR, ciL);
                 }
             }
             for(int k = 0; k < SizeBeta; k++) {
-                Interaction_n_k[k].Add(oldInteraction_k[k]);
-                Magnetization_n_k[k].Add(oldMagnetization_k[k]);
-                Energy_n_k[k].Add(oldEnergy_k[k]);
-                ChainIndex_n_k[k].Add(rev_index_k[k]);
-                BetaIndex_n_k[rev_index_k[k]].Add(k);
+                interaction_n_k[k].Add(oldInteraction_k[k]);
+                magnetization_n_k[k].Add(oldMagnetization_k[k]);
+                energy_n_k[k].Add(oldEnergy_k[k]);
+                ChainIndex_n_k[k].Add(chain_index_k[k]);
+                BetaIndex_n_k[chain_index_k[k]].Add(k);
             }
         }
 
         public void Verbose() {
-            var kth_beta = Enumerable.Range(0, SizeBeta).Select(k => BetaIndex_n_k[k].Last()).ToList();
-            for(int k = 0; k < SizeBeta; k++) {
-                Console.Write($"{oldEnergy_k[kth_beta[k]]}, ");
+            var kth_beta = Enumerable.Range(0, SizeBeta).Select(k => BetaIndex_n_k[k].Last());
+            Debug.Assert(kth_beta.Count() == SizeBeta);
+            Console.WriteLine($"{SampleCount}-th samples");
+#if DEBUG
+            Console.Write("kth-i\n\t");
+            foreach(int ki in kth_beta) {
+                Console.Write($"{ki}\t");
+            }
+            Console.WriteLine("");
+#endif
+
+            Console.Write("Interaction\n\t");
+            foreach(int ki in kth_beta) { 
+                Console.Write($"{oldInteraction_k[ki]}\t");
             }
             Console.WriteLine();
+#if DEBUG
+            Console.Write("\t");
+            foreach(int ki in kth_beta) {
+                Console.Write($"{LastInteraction(ki)}\t");
+            }
+            Console.WriteLine("");
+#endif
+
+            Console.Write("Magnetization\n\t");
+            foreach(int ki in kth_beta) {
+                Console.Write($"{oldMagnetization_k[ki]}\t");
+            }
+            Console.WriteLine();
+#if DEBUG
+            Console.Write("\t");
+            foreach(int ki in kth_beta) {
+                Console.Write($"{LastMagnetization(ki)}\t");
+            }
+            Console.WriteLine("");
+#endif
+
+            Console.Write("Energy\n\t");
+            foreach(int ki in kth_beta) { 
+            //for(int k = 0; k < SizeBeta; k++) {
+                Console.Write($"{oldEnergy_k[ki]}\t");
+            }
+            Console.WriteLine();
+#if DEBUG
+            Console.Write("\t");
+            foreach(int ki in kth_beta) { 
+            //for(int k = 0; k < SizeBeta; k++) {
+                Console.Write($"{LastEnergy(ki)}\t");
+            }
+            Console.WriteLine("");
+#endif
+
         }
 
-        public List<int>[] GetInteractions() => GetSeries(Interaction_n_k, ChainIndex_n_k);
+        public List<int>[] GetInteractions() => GetSeries(interaction_n_k, ChainIndex_n_k);
 
-        public List<int>[] GetMagnetization() => GetSeries(Magnetization_n_k, ChainIndex_n_k);
+        public List<int>[] GetMagnetization() => GetSeries(magnetization_n_k, ChainIndex_n_k);
 
-        public List<float>[] GetEnergys() => GetSeries(Energy_n_k, ChainIndex_n_k);
+        public List<float>[] GetEnergys() => GetSeries(energy_n_k, ChainIndex_n_k);
 
         public (double[], double[]) SpecificHeat_k(int burnin = 1000, int skip = 10, int n_bootstrap = 100) {
             double[] spe_mean_k = new double[SizeBeta], spe_std_k = new double[SizeBeta];
@@ -189,7 +257,9 @@ namespace Simulator
                 var bootstrap_spes = Enumerable.Range(0, n_bootstrap)
                     .Select(r => Enumerable.Range(0, n_samples).Select(x => (double)sub_energys[rnd.Next(n_samples)]))
                     .Select(lst => SpecificHeat(lst, Beta_k[k], SizeWidth * SizeHeight));
-                Debug.WriteLine($"{bootstrap_spes.ToList()}");
+#if DEBUG
+                Console.WriteLine($"{bootstrap_spes.ToList()}");
+#endif
                 spe_mean_k[k] = bootstrap_spes.Average();
                 spe_std_k[k] = Stdev(bootstrap_spes);
             }

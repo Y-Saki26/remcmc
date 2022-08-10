@@ -86,8 +86,13 @@ namespace Simulator
         public static float Energy(float j, float field, int interaction, int magnetization) => -j * interaction - field * magnetization;
 
 
-        public static bool MetropolisTest(Random rnd, float oldLogLikelihood, double newLogLikelihood) {
+        public static bool MetropolisTest(Random rnd, float oldLogLikelihood, float newLogLikelihood) {
             return newLogLikelihood >= oldLogLikelihood || (float)rnd.NextDouble() <= Math.Exp(newLogLikelihood - oldLogLikelihood);
+        }
+
+        public static bool ExchangeTest(Random rnd, float leftBeta, float rightBeta, float leftEnergy, float rightEnergy) {
+            float deltaLogLilelihood = -(rightBeta - leftBeta) * (- rightEnergy + leftEnergy);
+            return deltaLogLilelihood >= 0 || (float)rnd.NextDouble() <= Math.Exp(deltaLogLilelihood);
         }
 
         public static double SpecificHeat(IEnumerable<double> energy, double beta, int spin_num)
@@ -95,15 +100,14 @@ namespace Simulator
 
         // for REMCMC
         public static List<T>[] GetSeries<T>(List<T>[] series_n_k, List<int>[] chain_index_n_k) {
-            //var kth_beta = Enumerable.Range(0, SizeBeta).Select(k => BetaIndex_n_k[k].Last()).ToList();
             int size_beta = series_n_k.Length, size_sample = series_n_k[0].Count();
 
             var return_series = new List<T>[size_beta];
-            for(int k = 0; k < series_n_k.Length; k++) {
+            for(int k = 0; k < size_beta; k++) {
                 return_series[k] = new List<T>();
             }
-            for(int n = 0; n < chain_index_n_k[0].Count(); n++) {
-                for(int k = 0; k < series_n_k.Length; k++) {
+            for(int n = 0; n < size_sample; n++) {
+                for(int k = 0; k < size_beta; k++) {
                     return_series[k].Add(series_n_k[chain_index_n_k[k][n]][n]);
                 }
             }

@@ -19,7 +19,7 @@ from multiprocessing import Pool
 #plt.style.use(['science', 'notebook', 'no-latex'])
 import numpy as np
 import clr
-clr.AddReference('Simulator')
+clr.AddReference('Simulator_R2')
 from Simulator import Ising2d, Ising2dExchange
 
 
@@ -91,7 +91,8 @@ def timer(func):
     return wrapper
 
 def output_string(element2d, sep1=" ", sep2=", "):
-    width = os.get_terminal_size().columns - max(len(sep1), len(sep2))
+    #width = os.get_terminal_size().columns - max(len(sep1), len(sep2))
+    width=200
     init_tab = len(element2d[0][0]) + 1
     output_str = ""
     output_col = 0

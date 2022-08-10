@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Diagnostics;
 using static Simulator.Utils;
 
 namespace Simulator
@@ -13,6 +14,7 @@ namespace Simulator
         public readonly float Beta, J, Field;
         public List<int> Interactions, Magnetizations;
         public List<float> Energys;
+        public int SampleCount;
 
         private readonly int[] dx = { 0, 0, -1, 1 }, dy = { -1, 1, 0, 0 };
         private int[,] spins;
@@ -42,20 +44,46 @@ namespace Simulator
             Energys = new List<float>();
             Energys.Add(LastEnergy());
             oldEnergy = Energys.Last();
+            SampleCount = 1;
+
+
+#if DEBUG
+            Console.WriteLine($"spin:");
+            for(int w = 0; w < SizeWidth; w++) {
+                for(int h = 0; h < SizeHeight; h++) {
+                    Console.Write($"{spins[w, h]}, ");
+                }
+                Console.WriteLine("");
+            }
+            Console.WriteLine($"i: {oldInteraction}");
+            Console.WriteLine($"m: {oldMagnetization}");
+            Console.WriteLine($"e: {oldEnergy}");
+
+            Verbose();
+            Debug.Assert(Interactions.Last() == LastInteraction(), $"{SampleCount}: interaction not match: {Interactions.Last()}, {LastInteraction()}");
+            Debug.Assert(Magnetizations.Last() == LastMagnetization(), $"{SampleCount}: magnet not match: {Magnetizations.Last()}, {LastMagnetization()}");
+            Debug.Assert(Energys.Last() == LastEnergy(), $"{SampleCount}: energy not mathch: {Energys.Last()}, {LastEnergy()}");
+            //Console.WriteLine($"{n}: OK.");
+            Console.WriteLine($"{SampleCount}: OK.");
+#endif
         }
 
         //private int Spin(int w, int h) => spins[w, h] * 2 - 1;
 
         public int LastInteraction() {
             int sum = 0;
-            for(int w = 0; w < SizeWidth - 1; w++) {
-                int ww = w + 1;
-                for(int h = 0; h < SizeHeight - 1; h++) {
-                    int hh = h + 1;
-                    sum += spins[w, h] * spins[ww, hh];// Spin(w, h) * Spin(ww, hh);
+            for(int w = 0; w < SizeWidth; w++) {
+                for(int h = 0; h < SizeHeight; h++) {
+                    for(int k=0; k < 4; k++) {
+                        int ww = w + dx[k], hh = h + dy[k];
+                        if(0<=ww && ww<SizeWidth && 0<=hh && hh < SizeHeight) {
+                            sum += spins[w, h] * spins[ww, hh];
+                        }
+                    }
+                    
                 }
             }
-            return sum;
+            return sum / 2;
         }
 
         public int LastMagnetization() {
@@ -69,10 +97,24 @@ namespace Simulator
         }
 
         public float LastEnergy() => Energy(J, Field, oldInteraction, oldMagnetization);
+        
+        public void Sampling(int sample_size, bool verbose = false, int verbose_frequency = 100) {
+            for(int n = 0; n < sample_size; n++) {
+                SamplingLocal();
 
+                if(verbose && n % verbose_frequency == 0) {
+                    Verbose();
+#if DEBUG
+                    Debug.Assert(Interactions.Last() == LastInteraction(), $"{SampleCount}: interaction not match: {Interactions.Last()}, {LastInteraction()}");
+                    Debug.Assert(Magnetizations.Last() == LastMagnetization(), $"{SampleCount}: magnet not match: {Magnetizations.Last()}, {LastMagnetization()}");
+                    Debug.Assert(Energys.Last() == LastEnergy(), $"{SampleCount}: energy not mathch: {Energys.Last()}, {LastEnergy()}");
+                    Console.WriteLine($"{n}: OK.");
+#endif
+                }
+            }
+        }
 
-        private void SamplingSingleStep() {
-
+        private void SamplingLocal() {
             for(int r = 0; r < SizeWidth * SizeHeight; r++) {
                 int w = rnd.Next(SizeWidth), h = rnd.Next(SizeHeight);
                 int old_spin = spins[w, h];
@@ -88,7 +130,6 @@ namespace Simulator
                 int new_interaction = oldInteraction - d_interaction * 2;
                 float new_energy = Energy(J, Field, new_interaction, new_magnetization);
 
-                //if (new_energy <= oldEnergy || (float)rnd.NextDouble() <= Math.Exp(-Beta * (new_energy - oldEnergy)))
                 if(MetropolisTest(rnd, -Beta * oldEnergy, -Beta * new_energy)) {
                     spins[w, h] = new_spin;
                     oldInteraction = new_interaction;
@@ -99,16 +140,6 @@ namespace Simulator
             Interactions.Add(oldInteraction);
             Magnetizations.Add(oldMagnetization);
             Energys.Add(oldEnergy);
-        }
-
-        public void Sampling(int sample_size, bool verbose = false, int verbose_frequency = 100) {
-            for(int n = 0; n < sample_size; n++) {
-                SamplingSingleStep();
-
-                if(verbose && n % verbose_frequency == 0) {
-                    Verbose();
-                }
-            }
         }
 
         public void Verbose() {
