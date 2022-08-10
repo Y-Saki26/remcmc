@@ -775,3 +775,4 @@ cython_debug/
 # Additional files built by Visual Studio
 
 # End of https://www.toptal.com/developers/gitignore/api/csharp,visualstudio,visualstudiocode,python,jupyternotebooks
+memo/stan_test/*/*.png
